@@ -1,4 +1,6 @@
-# Quick Check — Recommend Fleet First, Then Budget
-- Phase 1: Recommend fleet size to serve captured market (≤500 nm routes)
-- Phase 2: Optional: enter affordable fleet to get a starter network
-- Replace DEMAND (TranStats) and DISTANCES (NOAA tables) for production
+
+# Quick Check — Interlined Lines Scheduler
+- Evaluates predefined lines (multi-stop), not all OD pairs.
+- Fleet sizing by peak segment load per line.
+- Budget mode builds an **interlined** daily plan: assigns line cycles across multiple vessels; a vessel can serve multiple lines in one day.
+- Replace demo DISTANCES (NOAA) and DEMAND (TranStats) with production sources.

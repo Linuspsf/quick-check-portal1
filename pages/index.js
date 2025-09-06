@@ -2,237 +2,198 @@
 import { useMemo, useState } from 'react';
 import Head from 'next/head';
 import { motion } from 'framer-motion';
-/** DEMO distances (nm) and demand — replace with NOAA + TranStats in production */
+
+/** DEMO data (replace with NOAA + TranStats in production) */
 const DISTANCES = {
-  'San Francisco Bay': {
-    ports: ['San Francisco, CA','Oakland, CA','Richmond, CA','Vallejo, CA','Redwood City, CA','Sausalito, CA'],
-    nm: {
-      'San Francisco, CA': {'Oakland, CA': 7, 'Richmond, CA': 12, 'Vallejo, CA': 31, 'Redwood City, CA': 24, 'Sausalito, CA': 5},
-      'Oakland, CA': {'Richmond, CA': 10, 'Vallejo, CA': 28, 'Redwood City, CA': 22, 'Sausalito, CA': 12},
-      'Richmond, CA': {'Vallejo, CA': 19, 'Redwood City, CA': 30, 'Sausalito, CA': 13},
-      'Vallejo, CA': {'Redwood City, CA': 44, 'Sausalito, CA': 27},
-      'Redwood City, CA': {'Sausalito, CA': 28},
-    },
-  },
-  'Puget Sound / Salish Sea': {
-    ports: ['Seattle, WA','Bremerton, WA','Tacoma, WA','Everett, WA','Port Townsend, WA','Bellingham, WA', 'Victoria, BC'],
-    nm: {
-      'Seattle, WA': {'Bremerton, WA': 14, 'Tacoma, WA': 25, 'Everett, WA': 28, 'Port Townsend, WA': 35, 'Bellingham, WA': 70, 'Victoria, BC': 74},
-      'Bremerton, WA': {'Tacoma, WA': 29, 'Everett, WA': 34, 'Port Townsend, WA': 24, 'Bellingham, WA': 77, 'Victoria, BC': 65},
-      'Tacoma, WA': {'Everett, WA': 43, 'Port Townsend, WA': 49, 'Bellingham, WA': 89, 'Victoria, BC': 84},
-      'Everett, WA': {'Port Townsend, WA': 28, 'Bellingham, WA': 46, 'Victoria, BC': 60},
-      'Port Townsend, WA': {'Bellingham, WA': 40, 'Victoria, BC': 23},
-      'Bellingham, WA': {'Victoria, BC': 52},
-    },
-  },
   'Inside Passage (SE Alaska)': {
-    ports: ['Juneau, AK','Haines, AK','Skagway, AK','Sitka, AK','Petersburg, AK','Wrangell, AK','Ketchikan, AK'],
+    ports: ['Juneau, AK','Haines, AK','Skagway, AK','Sitka, AK','Petersburg, AK','Wrangell, AK','Ketchikan, AK','Hoonah, AK'],
     nm: {
-      'Juneau, AK': {'Haines, AK': 73, 'Skagway, AK': 94, 'Sitka, AK': 95, 'Petersburg, AK': 120, 'Wrangell, AK': 155, 'Ketchikan, AK': 235},
-      'Haines, AK': {'Skagway, AK': 14, 'Sitka, AK': 167, 'Petersburg, AK': 140},
-      'Skagway, AK': {'Sitka, AK': 188, 'Petersburg, AK': 161},
+      'Juneau, AK': {'Haines, AK': 73, 'Skagway, AK': 94, 'Sitka, AK': 95, 'Petersburg, AK': 120, 'Wrangell, AK': 155, 'Ketchikan, AK': 235, 'Hoonah, AK': 33},
+      'Haines, AK': {'Skagway, AK': 14, 'Petersburg, AK': 140},
       'Sitka, AK': {'Petersburg, AK': 109, 'Wrangell, AK': 144, 'Ketchikan, AK': 192},
       'Petersburg, AK': {'Wrangell, AK': 31, 'Ketchikan, AK': 116},
       'Wrangell, AK': {'Ketchikan, AK': 82},
-    },
-  },
-  'Lake Michigan': {
-    ports: ['Chicago, IL','Milwaukee, WI','Muskegon, MI','Ludington, MI','Green Bay, WI','Traverse City, MI'],
-    nm: {
-      'Chicago, IL': {'Milwaukee, WI': 77, 'Muskegon, MI': 98, 'Ludington, MI': 134, 'Green Bay, WI': 192, 'Traverse City, MI': 250},
-      'Milwaukee, WI': {'Muskegon, MI': 80, 'Ludington, MI': 116, 'Green Bay, WI': 117, 'Traverse City, MI': 189},
-      'Muskegon, MI': {'Ludington, MI': 44, 'Green Bay, WI': 159, 'Traverse City, MI': 106},
-      'Ludington, MI': {'Green Bay, WI': 125, 'Traverse City, MI': 86},
-      'Green Bay, WI': {'Traverse City, MI': 173},
-    },
-  },
+    }
+  }
+};
+
+const LINES = {
+  'Inside Passage (SE Alaska)': [
+    { id: 'JNU-HNS-SGY', name: 'Juneau—Haines—Skagway', color: '#ef4444', stops: ['Juneau, AK','Haines, AK','Skagway, AK'] },
+    { id: 'JNU-SIT', name: 'Juneau—Sitka', color: '#7c3aed', stops: ['Juneau, AK','Sitka, AK'] },
+    { id: 'JNU-PSG-WRG-KTN', name: 'Juneau—Petersburg—Wrangell—Ketchikan', color: '#10b981', stops: ['Juneau, AK','Petersburg, AK','Wrangell, AK','Ketchikan, AK'] },
+    { id: 'JNU-HNH', name: 'Juneau—Hoonah', color: '#f59e0b', stops: ['Juneau, AK','Hoonah, AK'] },
+  ]
 };
 
 const DEMAND = {
   'Juneau, AK ⇄ Haines, AK': 82400,
   'Juneau, AK ⇄ Skagway, AK': 42000,
+  'Haines, AK ⇄ Skagway, AK': 18000,
   'Juneau, AK ⇄ Sitka, AK': 70500,
   'Juneau, AK ⇄ Petersburg, AK': 61200,
+  'Petersburg, AK ⇄ Wrangell, AK': 31000,
+  'Wrangell, AK ⇄ Ketchikan, AK': 42000,
   'Juneau, AK ⇄ Wrangell, AK': 41800,
   'Juneau, AK ⇄ Ketchikan, AK': 35000,
-  'Seattle, WA ⇄ Bremerton, WA': 120000,
-  'Seattle, WA ⇄ Tacoma, WA': 95000,
-  'Seattle, WA ⇄ Everett, WA': 88000,
-  'Seattle, WA ⇄ Port Townsend, WA': 60000,
-  'Seattle, WA ⇄ Bellingham, WA': 45000,
-  'San Francisco, CA ⇄ Oakland, CA': 130000,
-  'San Francisco, CA ⇄ Vallejo, CA': 90000,
-  'San Francisco, CA ⇄ Sausalito, CA': 110000,
-  'San Francisco, CA ⇄ Redwood City, CA': 70000,
-  'Chicago, IL ⇄ Milwaukee, WI': 125000,
-  'Chicago, IL ⇄ Muskegon, MI': 80000,
-  'Chicago, IL ⇄ Ludington, MI': 65000,
-};
-
-const PRESETS = {
-  small: { label: 'Small', captureRate: 0.15 },
-  medium: { label: 'Medium', captureRate: 0.25 },
-  large: { label: 'Large', captureRate: 0.35 },
+  'Juneau, AK ⇄ Hoonah, AK': 30000,
 };
 
 function routeKey(a,b){ return a < b ? `${a} ⇄ ${b}` : `${b} ⇄ ${a}`; }
+function nmBetween(nm, a, b){ return (nm[a] && nm[a][b]) || (nm[b] && nm[b][a]) || null; }
 
-function pairList(areaPorts, home){
-  const pairs = [];
-  if(home){
-    areaPorts.forEach(p => { if(p!==home) pairs.push([home,p]); });
-  } else {
-    for(let i=0;i<areaPorts.length;i++){
-      for(let j=i+1;j<areaPorts.length;j++){
-        pairs.push([areaPorts[i], areaPorts[j]]);
-      }
-    }
+function lineSegments(stops, nm){
+  const segs = [];
+  for(let i=0;i<stops.length-1;i++){
+    const a=stops[i], b=stops[i+1];
+    const d = nmBetween(nm,a,b);
+    if(d==null || d>500) return null;
+    segs.push({a,b,nm:d});
   }
-  return pairs;
+  return segs;
+}
+
+function pathBetween(stops, segs, a, b){
+  const i = stops.indexOf(a), j = stops.indexOf(b);
+  if(i===-1 || j===-1) return null;
+  const low=Math.min(i,j), high=Math.max(i,j);
+  return segs.slice(low, high);
+}
+
+function hoursToHHMM(h){
+  const total = Math.round(h*60);
+  const hh = Math.floor(total/60);
+  const mm = total%60;
+  return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
 }
 
 export default function Home(){
-  const [mode, setMode] = useState('area'); // 'area' or 'home'
-  const [area, setArea] = useState('Inside Passage (SE Alaska)');
-  const [home, setHome] = useState('Juneau, AK');
-  const [preset, setPreset] = useState('medium');
-  const [speed, setSpeed] = useState(40); // knots
+  const [area] = useState('Inside Passage (SE Alaska)');
+  const [speed, setSpeed] = useState(75);
   const [opsHours, setOpsHours] = useState(12);
-  const [portTimeMin, setPortTimeMin] = useState(15);
+  const [dwellMin, setDwellMin] = useState(12);
   const [fare, setFare] = useState(120);
   const [loadFactor, setLoadFactor] = useState(0.75);
   const [costPerNm, setCostPerNm] = useState(8);
-  const [reservePct, setReservePct] = useState(0.15); // maintenance reserve
-  const [budgetFleet, setBudgetFleet] = useState(0); // optional affordability override
+  const [reservePct, setReservePct] = useState(0.15);
+  const [captureRate, setCaptureRate] = useState(0.25);
+  const [budgetFleet, setBudgetFleet] = useState(4);
   const [result, setResult] = useState(null);
 
-  const ports = DISTANCES[area].ports;
   const nmMatrix = DISTANCES[area].nm;
+  const lines = LINES[area];
 
-  const candidates = useMemo(() => {
-    const basePairs = pairList(ports, mode==='home'?home:null);
-    const rows = basePairs.map(([a,b]) => {
-      const rk = routeKey(a,b);
-      const d = (nmMatrix[a] && nmMatrix[a][b]) || (nmMatrix[b] && nmMatrix[b][a]) || null;
-      return { a, b, rk, nm: d };
-    }).filter(r => r.nm !== null && r.nm <= 500);
-    return rows;
-  }, [ports, nmMatrix, mode, home]);
-
-  function compute(){
-    const p = PRESETS[preset];
-    const effSeats = Math.max(1, Math.floor(20 * loadFactor)); // 20-seat wingship
-
-    // Phase 1 — recommend fleet to serve identified market (captured demand)
-    const perRoute = candidates.map(r => {
-      const distNm = r.nm;
-      const transitHours = distNm / speed; // one-way
-      const cycleHours = 2*transitHours + (2*portTimeMin/60); // round-trip incl. both ports
-      const tripsPerVesselPerDay = Math.max(0, Math.floor(opsHours / cycleHours));
+  const compute = () => {
+    const effSeats = Math.floor(20 * loadFactor);
+    const lineResults = [];
+    for(const line of lines){
+      const segs = lineSegments(line.stops, nmMatrix);
+      if(!segs) continue;
+      const oneWay = segs.reduce((s,sg)=> s + sg.nm/speed, 0);
+      const callsPerRoundTrip = 2 * line.stops.length;
+      const cycle = 2*oneWay + (callsPerRoundTrip * dwellMin/60);
+      const tripsPerVesselPerDay = Math.max(0, Math.floor(opsHours / cycle));
       const paxPerTrip = effSeats;
-      const demand = DEMAND[r.rk] ?? Math.max(20000, Math.round(1000*distNm/2)); // fallback
-      const captured = Math.round(demand * p.captureRate);
-      const capturedPerDay = captured / 365;
-      const tripsNeededPerDay = Math.ceil(capturedPerDay / Math.max(paxPerTrip,1));
-      const vesselsNeeded = tripsPerVesselPerDay>0 ? Math.ceil(tripsNeededPerDay / tripsPerVesselPerDay) : Infinity;
 
-      // economics
+      const segLoads = segs.map(sg => ({...sg, paxPerDay: 0}));
+      let capturedTotalPerDay = 0;
+      const candidatePairs = [];
+      for(let i=0;i<line.stops.length-1;i++) candidatePairs.push(routeKey(line.stops[i], line.stops[i+1]));
+      const hub = line.stops.find(s => /Juneau|Seattle|San Francisco|Chicago/.test(s));
+      if(hub){ for(const s of line.stops){ if(s!==hub) candidatePairs.push(routeKey(hub, s)); } }
+
+      for(const key of candidatePairs){
+        const annual = DEMAND[key] ?? 0;
+        if(!annual) continue;
+        const captured = (annual * captureRate)/365;
+        const [a,b] = key.split(' ⇄ ');
+        const path = pathBetween(line.stops, segs, a, b);
+        if(!path) continue;
+        for(const p of path){
+          const idx = segLoads.findIndex(sg => (sg.a===p.a && sg.b===p.b) || (sg.a===p.b && sg.b===p.a));
+          if(idx>=0) segLoads[idx].paxPerDay += captured;
+        }
+        capturedTotalPerDay += captured;
+      }
+      const peakLoad = segLoads.reduce((m,sg)=> Math.max(m, sg.paxPerDay), 0);
+      const tripsNeeded = Math.ceil(peakLoad / Math.max(paxPerTrip,1));
+      const vesselsNeeded = tripsPerVesselPerDay>0 ? Math.ceil(tripsNeeded / tripsPerVesselPerDay) : Infinity;
+
+      const lineNmRoundTrip = 2 * segs.reduce((s,sg)=> s + sg.nm, 0);
       const revenuePerTrip = fare * paxPerTrip;
-      const variableCostPerTrip = costPerNm * (2*distNm);
+      const variableCostPerTrip = costPerNm * lineNmRoundTrip;
       const marginPerTrip = revenuePerTrip - variableCostPerTrip;
       const marginPerVesselDay = marginPerTrip * tripsPerVesselPerDay;
       const marginPerHour = marginPerVesselDay / Math.max(opsHours,1);
 
-      return { ...r, distNm, cycleHours, tripsPerVesselPerDay, paxPerTrip, demand, captured, capturedPerDay, tripsNeededPerDay, vesselsNeeded, marginPerHour, marginPerVesselDay };
-    }).filter(r => r.vesselsNeeded !== Infinity);
-
-    const fleetRecommendedRaw = perRoute.reduce((s,r)=> s + r.vesselsNeeded, 0);
-    const fleetRecommended = Math.ceil(fleetRecommendedRaw * (1 + reservePct));
-
-    // Phase 2 — if client enters a budget fleet, recommend best subset within budget
-    let allocation = [];
-    let fleetUsed = 0;
-    if(budgetFleet && budgetFleet > 0){
-      const ranked = [...perRoute].sort((a,b)=> b.marginPerHour - a.marginPerHour);
-      let remaining = budgetFleet;
-      for(const r of ranked){
-        if(remaining<=0) break;
-        const v = Math.min(remaining, r.vesselsNeeded);
-        if(v>0){
-          allocation.push({ route: r.rk, vessels: v, tripsPerVesselPerDay: r.tripsPerVesselPerDay, paxPerTrip: r.paxPerTrip, cycleHours: r.cycleHours, distNm: r.distNm, marginPerVesselDay: r.marginPerVesselDay, capturedPerDay: r.capturedPerDay });
-          remaining -= v;
-          fleetUsed += v;
-        }
-      }
+      lineResults.push({ ...line, segs, cycleHours:cycle, tripsPerVesselPerDay, paxPerTrip, peakLoad, tripsNeeded, vesselsNeeded, marginPerVesselDay, marginPerHour, capturedTotalPerDay, lineNmRoundTrip });
     }
 
-    const totals = {
-      routesCount: perRoute.length,
-      paxDayFull: perRoute.reduce((s,r)=> s + r.capturedPerDay, 0),
-      tripsDayFull: perRoute.reduce((s,r)=> s + r.tripsNeededPerDay, 0),
-    };
+    const fleetRecommendedRaw = lineResults.reduce((s,r)=> s + (r.vesselsNeeded===Infinity?0:r.vesselsNeeded), 0);
+    const fleetRecommended = Math.ceil(fleetRecommendedRaw * (1+reservePct));
+    const capturedPaxDay = lineResults.reduce((s,r)=> s + r.capturedTotalPerDay, 0);
 
-    const budgetTotals = allocation.length ? {
-      paxDay: allocation.reduce((s,a)=> s + a.vessels * a.tripsPerVesselPerDay * a.paxPerTrip, 0),
-      marginDay: allocation.reduce((s,a)=> s + a.vessels * a.marginPerVesselDay, 0),
-    } : null;
+    // Phase 2: build cycle "jobs" to satisfy tripsNeeded for each line, then assign to N vessels
+    let schedule = null;
+    if(budgetFleet>0){
+      // Create jobs: each job is one full line round trip
+      const jobs = [];
+      for(const r of lineResults){
+        for(let k=0; k<r.tripsNeeded; k++){
+          jobs.push({
+            id: r.id + '-' + (k+1),
+            lineId: r.id,
+            lineName: r.name,
+            color: r.color,
+            duration: r.cycleHours,
+            margin: r.marginPerVesselDay / Math.max(r.tripsPerVesselPerDay,1), // approx per cycle
+            density: (r.marginPerVesselDay / Math.max(r.tripsPerVesselPerDay,1)) / r.cycleHours
+          });
+        }
+      }
+      // Sort jobs by value density desc (margin/hour)
+      jobs.sort((a,b)=> b.density - a.density);
 
-    setResult({
-      preset: p.label,
-      effSeats,
-      perRoute,
-      fleetRecommended,
-      fleetRecommendedRaw,
-      reservePct,
-      totals,
-      budget: budgetFleet>0 ? { fleetBudget: budgetFleet, allocation, fleetUsed, totals: budgetTotals } : null
-    });
-  }
+      const vessels = Array.from({length: budgetFleet}, (_,i)=>({ id: i+1, time: 0, plan: [] }));
+      const dayLimit = opsHours;
+
+      for(const job of jobs){
+        // pick vessel that becomes available the earliest
+        vessels.sort((a,b)=> a.time - b.time);
+        const v = vessels[0];
+        if(v.time + job.duration <= dayLimit){
+          v.plan.push({ lineName: job.lineName, color: job.color, start: v.time, end: v.time + job.duration, duration: job.duration, margin: job.margin });
+          v.time += job.duration;
+        }
+      }
+
+      const allocationRows = [];
+      let networkMargin = 0, networkPax = 0;
+      for(const v of vessels){
+        for(const leg of v.plan){
+          networkMargin += leg.margin;
+          // capacity per cycle = paxPerTrip; we don't have per-line here, estimate by duration mapping back
+          const line = lineResults.find(l => l.name === leg.lineName);
+          networkPax += line ? line.paxPerTrip : 0;
+        }
+      }
+      schedule = { vessels, networkMargin, networkPax };
+    }
+
+    setResult({ lines: lineResults, fleetRecommended, fleetRecommendedRaw, capturedPaxDay, effSeats, schedule });
+  };
 
   return (
     <div className="container">
-      <Head><title>Pacific Seaflight Quick Check</title></Head>
+      <Head><title>Pacific Seaflight Quick Check — Interlined Scheduler</title></Head>
       <div className="card">
-        <h1 className="h1">Quick Check — Service Area / Home Port</h1>
-        <p className="subtitle">Phase 1: we estimate the **fleet size needed** to serve the identified market within 500 nm. Phase 2 (optional): enter what you can afford and we’ll suggest a starter network.</p>
-
-        <div className="row">
-          <div>
-            <label className="label">Mode</label>
-            <select className="select" value={mode} onChange={e=>setMode(e.target.value)}>
-              <option value="area">Service Area</option>
-              <option value="home">Home Port</option>
-            </select>
-          </div>
-          <div>
-            <label className="label">Market Preset</label>
-            <select className="select" value={preset} onChange={e=>setPreset(e.target.value)}>
-              <option value="small">Small</option>
-              <option value="medium">Medium</option>
-              <option value="large">Large</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="row">
-          <div>
-            <label className="label">Service Area</label>
-            <select className="select" value={area} onChange={e=>{ setArea(e.target.value); setHome(DISTANCES[e.target.value].ports[0]);}}>
-              {Object.keys(DISTANCES).map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label">Home Port (optional)</label>
-            <select className="select" value={home} onChange={e=>setHome(e.target.value)} disabled={mode!=='home'}>
-              {DISTANCES[area].ports.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-        </div>
+        <h1 className="h1">Quick Check — Interlined (multi-line) day plan</h1>
+        <p className="subtitle">We evaluate **lines** (e.g., Juneau—Haines—Skagway) and size fleet by peak segment load. If you enter a budgeted fleet, we interline cycles across lines to build a single-day plan per vessel (no “one vessel per pair”).</p>
 
         <div className="row">
           <div>
             <label className="label">Cruise speed (knots)</label>
-            <input className="input" type="number" min="10" max="80" value={speed} onChange={e=>setSpeed(Number(e.target.value))} />
+            <input className="input" type="number" min="20" max="90" value={speed} onChange={e=>setSpeed(Number(e.target.value))} />
           </div>
           <div>
             <label className="label">Ops hours per day</label>
@@ -242,12 +203,23 @@ export default function Home(){
 
         <div className="row">
           <div>
-            <label className="label">Port time per call (minutes)</label>
-            <input className="input" type="number" min="5" max="60" value={portTimeMin} onChange={e=>setPortTimeMin(Number(e.target.value))} />
+            <label className="label">Port dwell per call (min)</label>
+            <input className="input" type="number" min="5" max="45" value={dwellMin} onChange={e=>setDwellMin(Number(e.target.value))} />
           </div>
           <div>
             <label className="label">Target load factor</label>
             <input className="input" type="number" step="0.05" min="0.1" max="1" value={loadFactor} onChange={e=>setLoadFactor(Number(e.target.value))} />
+          </div>
+        </div>
+
+        <div className="row">
+          <div>
+            <label className="label">Capture rate of market</label>
+            <input className="input" type="number" step="0.05" min="0.05" max="0.8" value={captureRate} onChange={e=>setCaptureRate(Number(e.target.value))} />
+          </div>
+          <div>
+            <label className="label">Maintenance reserve (fraction)</label>
+            <input className="input" type="number" step="0.05" min="0" max="0.5" value={reservePct} onChange={e=>setReservePct(Number(e.target.value))} />
           </div>
         </div>
 
@@ -264,45 +236,39 @@ export default function Home(){
 
         <div className="row">
           <div>
-            <label className="label">Maintenance reserve</label>
-            <input className="input" type="number" step="0.05" min="0" max="0.5" value={reservePct} onChange={e=>setReservePct(Number(e.target.value))} />
-            <span className="small">Fraction of fleet (e.g., 0.15 = 15%).</span>
-          </div>
-          <div>
-            <label className="label">Optional budget: I can start with up to N vessels</label>
+            <label className="label">Budget: I can start with up to N vessels (interlining)</label>
             <input className="input" type="number" min="0" value={budgetFleet} onChange={e=>setBudgetFleet(Number(e.target.value))} />
-            <span className="small">Leave 0 to skip Phase 2.</span>
           </div>
-        </div>
-
-        <div className="row">
-          <div></div>
           <div>
             <label className="label">&nbsp;</label>
             <button className="btn" onClick={compute}>Run Quick Check</button>
           </div>
         </div>
 
-        <hr/>
-        <p className="small">Routes longer than 500 nautical miles are excluded. Distances are nautical miles along safe navigable routes; time = nm ÷ knots. Demo values only.</p>
+        <p className="small">Segments > 500 nm are excluded. Distances are nautical miles on safe navigable routes. Demo datasets shown.</p>
       </div>
 
       {result && (
         <motion.div initial={{opacity:0}} animate={{opacity:1}} className="card">
-          <h3>Phase 1 — Fleet needed to serve identified market</h3>
+          <h3>Phase 1 — Fleet needed to serve captured market (by line)</h3>
           <div className="grid3">
-            <div className="stat"><div className="k">{result.perRoute.length}</div><div className="small">Routes ≤ 500 nm evaluated</div></div>
+            <div className="stat"><div className="k">{result.lines.length}</div><div className="small">Lines evaluated</div></div>
             <div className="stat"><div className="k">{Math.ceil(result.fleetRecommended)}</div><div className="small">Recommended fleet (incl. reserve)</div></div>
-            <div className="stat"><div className="k">{Math.round(result.totals.paxDayFull).toLocaleString()}</div><div className="small">Captured passengers per day</div></div>
+            <div className="stat"><div className="k">{Math.round(result.capturedPaxDay).toLocaleString()}</div><div className="small">Captured pax/day</div></div>
           </div>
           <table className="table">
-            <thead>
-              <tr><th>Route</th><th>NM</th><th>Cycle (h)</th><th>Trips/vessel/day</th><th>Pax/trip</th><th>Trips/day needed</th><th>Vessels needed</th></tr>
-            </thead>
+            <thead><tr><th>Line</th><th>Stops</th><th>Cycle (h)</th><th>Trips/vessel/day</th><th>Pax/trip</th><th>Peak seg load</th><th>Trips/day needed</th><th>Vessels needed</th></tr></thead>
             <tbody>
-              {result.perRoute.map(r => (
-                <tr key={r.rk}>
-                  <td>{r.rk}</td><td>{r.distNm}</td><td>{r.cycleHours.toFixed(2)}</td><td>{r.tripsPerVesselPerDay}</td><td>{r.paxPerTrip}</td><td>{r.tripsNeededPerDay}</td><td>{r.vesselsNeeded}</td>
+              {result.lines.map(r => (
+                <tr key={r.id}>
+                  <td><span className="badge" style={{background:r.color, color:'white', border:'none'}}>{r.name}</span></td>
+                  <td>{r.stops.join(' → ')}</td>
+                  <td>{r.cycleHours.toFixed(2)}</td>
+                  <td>{r.tripsPerVesselPerDay}</td>
+                  <td>{r.paxPerTrip}</td>
+                  <td>{Math.ceil(r.peakLoad)}</td>
+                  <td>{r.tripsNeeded}</td>
+                  <td>{r.vesselsNeeded}</td>
                 </tr>
               ))}
             </tbody>
@@ -310,35 +276,30 @@ export default function Home(){
         </motion.div>
       )}
 
-      {result && result.budget && (
+      {result && result.schedule && (
         <motion.div initial={{opacity:0}} animate={{opacity:1}} className="card">
-          <h3>Phase 2 — Starter network within your budget ({result.budget.fleetBudget} vessels)</h3>
-          {result.budget.allocation.length === 0 ? (
-            <p>No positive-margin routes can be recommended with the current settings.</p>
-          ) : (
-            <>
-              <table className="table">
-                <thead><tr><th>Route</th><th>Vessels</th><th>Cycle (h)</th><th>Trips/vessel/day</th><th>Pax/vessel/day</th><th>Daily margin (per vessel)</th></tr></thead>
-                <tbody>
-                  {result.budget.allocation.map(a => (
-                    <tr key={a.route}>
-                      <td>{a.route}</td>
-                      <td>{a.vessels}</td>
-                      <td>{a.cycleHours.toFixed(2)}</td>
-                      <td>{a.tripsPerVesselPerDay}</td>
-                      <td>{a.paxPerVesselDay}</td>
-                      <td>${Math.round(a.marginPerVesselDay).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div style={{display:'flex', gap:24, flexWrap:'wrap', marginTop:10}}>
-                <div><strong>Fleet used:</strong> {result.budget.fleetUsed}/{result.budget.fleetBudget}</div>
-                {result.budget.totals && <div><strong>Network capacity/day:</strong> {Math.round(result.budget.totals.paxDay).toLocaleString()} pax</div>}
-                {result.budget.totals && <div><strong>Total daily margin (demo):</strong> ${Math.round(result.budget.totals.marginDay).toLocaleString()}</div>}
+          <h3>Phase 2 — Interlined starter day plan ({result.schedule.vessels.length} vessels)</h3>
+          <p className="small">Each cycle is an end-to-end round trip on a line. We assign the most valuable cycles first (margin/hour) while avoiding overlap on each vessel.</p>
+          <div className="vesselGrid">
+            {result.schedule.vessels.map(v => (
+              <div key={v.id} style={{border:'1px solid #e5e7eb', borderRadius:12, padding:10, background:'#f8fafc'}}>
+                <div style={{fontWeight:700, marginBottom:6}}>Vessel {v.id}</div>
+                {v.plan.length===0 ? <div className="small">Idle</div> : v.plan.map((leg, i) => (
+                  <div key={i} style={{marginBottom:6}}>
+                    <div style={{display:'flex', justifyContent:'space-between'}}>
+                      <span className="badge" style={{background:leg.color, color:'white', border:'none'}}>{leg.lineName}</span>
+                      <span className="small">{hoursToHHMM(leg.start)}–{hoursToHHMM(leg.end)}</span>
+                    </div>
+                    <div className="small">Cycle {leg.duration.toFixed(2)} h • est. margin ${Math.round(leg.margin).toLocaleString()}</div>
+                  </div>
+                ))}
               </div>
-            </>
-          )}
+            ))}
+          </div>
+          <div style={{display:'flex', gap:24, marginTop:10, flexWrap:'wrap'}}>
+            <div><strong>Network capacity/day (approx cycles × pax/trip):</strong> {Math.round(result.schedule.networkPax).toLocaleString()} pax</div>
+            <div><strong>Total daily margin (demo):</strong> ${Math.round(result.schedule.networkMargin).toLocaleString()}</div>
+          </div>
         </motion.div>
       )}
     </div>
