@@ -1,2 +1,1 @@
-version: v2
-note: speed fixed at 75 kn; JSX text uses &gt; for 500 nm message.
+Quick Check — LITE: minimal UI, 75 kn fixed, money-first charts. Replace demand via /public/data/demand.json.
