@@ -245,7 +245,7 @@ export default function Home(){
           </div>
         </div>
 
-        <p className="small">Segments > 500 nm are excluded. Distances are nautical miles on safe navigable routes. Demo datasets shown.</p>
+        <p className="small">Segments &gt; 500 nm are excluded. Distances are nautical miles on safe navigable routes. Demo datasets shown.</p>
       </div>
 
       {result && (
