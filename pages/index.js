@@ -1,7 +1,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Head from 'next/head';
-import { motion } from 'framer-motion';
 
 const KTS = 75; // fixed
 const SEATS = 20;
@@ -85,22 +84,19 @@ export default function Lite(){
   const [fare, setFare] = useState(120);
   const [preset, setPreset] = useState('M'); // S=10%, M=25%, L=40%
   const [od, setOD] = useState(DEMO_OD); // overlay with /public/data/demand.json if present
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [costNm, setCostNm] = useState(DEFAULT_COST_PER_NM);
+  const [costNm] = useState(DEFAULT_COST_PER_NM);
   const [opsH, setOpsH] = useState(DEFAULT_OPS_H);
-  const [dwellMin, setDwellMin] = useState(DEFAULT_DWELL_MIN);
+  const [dwellMin] = useState(DEFAULT_DWELL_MIN);
   const [load, setLoad] = useState(DEFAULT_LOAD);
 
   useEffect(()=>{ fetch('/data/demand.json').then(r=>r.ok?r.json():null).then(j=>{ if(j) setOD(j); }).catch(()=>{}); },[]);
   useEffect(()=>{
-    // when area changes, default home port to the first port in that area
     const ports = DIST[area].ports;
     if(!ports.includes(home)) setHome(ports[0]);
   }, [area]);
 
   const capture = preset==='S'?0.10:preset==='L'?0.40:0.25;
   const nmM = DIST[area].nm;
-  const ports = DIST[area].ports;
   const allLines = LINES[area].filter(L => L.stops.includes(home)); // only lines that include home port
   const seats = Math.floor(SEATS*load);
 
@@ -112,14 +108,16 @@ export default function Lite(){
     for(const line of allLines){
       const s = segs(line.stops, nmM);
       if(!s) continue;
+      const segments = s.length;
       const oneWay = s.reduce((t,sg)=>t+sg.nm/KTS,0);
-      const cycle = 2*oneWay + (2*line.stops.length)*(dwellMin/60);
-      const tripsPerVessel = Math.max(1, Math.floor(opsH / cycle));
+      const cycle = 2*oneWay + (2*line.stops.length)*(dwellMin/60); // hours for full out-and-back
+      const cyclesPerVessel = Math.max(1, Math.floor(opsH / cycle)); // cycles per vessel per day
       const paxTrip = seats;
 
+      // peak load on any segment
       const pairs=[];
       for(let i=0;i<line.stops.length-1;i++) pairs.push(key(line.stops[i], line.stops[i+1]));
-      const hub = home; // anchor flows to the chosen home port
+      const hub = home;
       for(const x of line.stops) if(x!==hub) pairs.push(key(hub,x));
 
       const segLoad = s.map(x=>({...x, pax:0}));
@@ -137,19 +135,20 @@ export default function Lite(){
         captured += cap;
       }
       const peak = segLoad.reduce((m,x)=>Math.max(m,x.pax),0);
-      const tripsNeeded = Math.ceil(peak/Math.max(paxTrip,1));
-      const vesselsNeeded = Math.ceil(tripsNeeded/Math.max(tripsPerVessel,1));
+      const tripsNeeded = Math.ceil(peak/Math.max(paxTrip,1)); // one-way trips per segment per day
+      const cyclesNeeded = Math.ceil(tripsNeeded/2);           // cycles/day required to cover both directions
+      const vesselsNeeded = Math.ceil(cyclesNeeded/Math.max(cyclesPerVessel,1));
       if(isFinite(vesselsNeeded)) fleet += vesselsNeeded;
 
-      const lineTrips = tripsNeeded;
+      // economics per CYCLE (out-and-back across the line)
       const lineRoundNm = 2*s.reduce((t,sg)=>t+sg.nm,0);
-      const rev = lineTrips * paxTrip * fare;
-      const cost = lineTrips * lineRoundNm * costNm;
+      const revPerCycle = paxTrip * fare * (2*segments); // both directions on each segment
+      const costPerCycle = lineRoundNm * costNm;
 
       dailyPax += captured;
-      dailyRev += rev;
-      dailyCost += cost;
-      lineContrib.push({ name: line.name, color: line.color, rev: rev, margin: Math.max(0, rev - cost) });
+      dailyRev += cyclesNeeded * revPerCycle;
+      dailyCost += cyclesNeeded * costPerCycle;
+      lineContrib.push({ name: line.name, color: line.color, rev: cyclesNeeded*revPerCycle, margin: Math.max(0, cyclesNeeded*(revPerCycle - costPerCycle)) });
     }
 
     const fleetWithReserve = Math.ceil(fleet*(1+RESERVE));
@@ -215,7 +214,7 @@ export default function Lite(){
             <div className="small" style={{marginTop:6}}>We consider only lines that include this port.</div>
           </div>
           <div>
-            <label className="label">Average fare (USD)</label>
+            <label className="label">Average fare per segment (USD)</label>
             <input className="input" type="number" value={fare} onChange={e=>setFare(Number(e.target.value))}/>
           </div>
         </div>
@@ -257,7 +256,7 @@ export default function Lite(){
             <span className="badge"><span className="dot" style={{background:'#ef4444'}}/>Variable cost</span>
             <span className="badge"><span className="dot" style={{background:'#0ea5e9'}}/>Gross margin</span>
           </div>
-          <div className="small" style={{marginTop:8}}>Assumes 75 kn, {DEFAULT_OPS_H} ops hrs/day, {DEFAULT_DWELL_MIN} min dwell, {int(DEFAULT_LOAD*100)}% target load. Segments &gt; 500 nm excluded.</div>
+          <div className="small" style={{marginTop:8}}>Assumes 75 kn, {DEFAULT_OPS_H} ops hrs/day, {DEFAULT_DWELL_MIN} min dwell, {Math.round(DEFAULT_LOAD*100)}% target load. Segments &gt; 500 nm excluded.</div>
         </div>
       </div>
 
