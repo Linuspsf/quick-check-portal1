@@ -17,3 +17,4 @@ hr{border:none;border-top:1px solid #e5e7eb;margin:12px 0;}
 .stat .k { font-weight:700; font-size:18px; }
 .vesselGrid { display:grid; grid-template-columns: repeat(5, 1fr); gap:10px; }
 .badge { display:inline-block; padding:2px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe; font-size:12px; }
+.fixedBox { background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:10px; }

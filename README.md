@@ -1,6 +1,2 @@
-
-# Quick Check — Interlined Lines Scheduler
-- Evaluates predefined lines (multi-stop), not all OD pairs.
-- Fleet sizing by peak segment load per line.
-- Budget mode builds an **interlined** daily plan: assigns line cycles across multiple vessels; a vessel can serve multiple lines in one day.
-- Replace demo DISTANCES (NOAA) and DEMAND (TranStats) with production sources.
+version: v2
+note: speed fixed at 75 kn; JSX text uses &gt; for 500 nm message.

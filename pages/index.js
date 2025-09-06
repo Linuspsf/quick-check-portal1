@@ -3,6 +3,9 @@ import { useMemo, useState } from 'react';
 import Head from 'next/head';
 import { motion } from 'framer-motion';
 
+// Constants
+const CRUISE_KTS = 75; // Fixed for First-Contact demo
+
 /** DEMO data (replace with NOAA + TranStats in production) */
 const DISTANCES = {
   'Inside Passage (SE Alaska)': {
@@ -69,7 +72,6 @@ function hoursToHHMM(h){
 
 export default function Home(){
   const [area] = useState('Inside Passage (SE Alaska)');
-  const [speed, setSpeed] = useState(75);
   const [opsHours, setOpsHours] = useState(12);
   const [dwellMin, setDwellMin] = useState(12);
   const [fare, setFare] = useState(120);
@@ -89,7 +91,7 @@ export default function Home(){
     for(const line of lines){
       const segs = lineSegments(line.stops, nmMatrix);
       if(!segs) continue;
-      const oneWay = segs.reduce((s,sg)=> s + sg.nm/speed, 0);
+      const oneWay = segs.reduce((s,sg)=> s + sg.nm/CRUISE_KTS, 0);
       const callsPerRoundTrip = 2 * line.stops.length;
       const cycle = 2*oneWay + (callsPerRoundTrip * dwellMin/60);
       const tripsPerVesselPerDay = Math.max(0, Math.floor(opsHours / cycle));
@@ -133,21 +135,22 @@ export default function Home(){
     const fleetRecommended = Math.ceil(fleetRecommendedRaw * (1+reservePct));
     const capturedPaxDay = lineResults.reduce((s,r)=> s + r.capturedTotalPerDay, 0);
 
-    // Phase 2: build cycle "jobs" to satisfy tripsNeeded for each line, then assign to N vessels
+    // Phase 2: build cycle jobs to satisfy tripsNeeded for each line, then assign to N vessels
     let schedule = null;
     if(budgetFleet>0){
       // Create jobs: each job is one full line round trip
       const jobs = [];
       for(const r of lineResults){
         for(let k=0; k<r.tripsNeeded; k++){
+          const perCycleMargin = r.marginPerVesselDay / Math.max(r.tripsPerVesselPerDay,1);
           jobs.push({
             id: r.id + '-' + (k+1),
             lineId: r.id,
             lineName: r.name,
             color: r.color,
             duration: r.cycleHours,
-            margin: r.marginPerVesselDay / Math.max(r.tripsPerVesselPerDay,1), // approx per cycle
-            density: (r.marginPerVesselDay / Math.max(r.tripsPerVesselPerDay,1)) / r.cycleHours
+            margin: perCycleMargin,
+            density: perCycleMargin / r.cycleHours
           });
         }
       }
@@ -167,12 +170,10 @@ export default function Home(){
         }
       }
 
-      const allocationRows = [];
       let networkMargin = 0, networkPax = 0;
       for(const v of vessels){
         for(const leg of v.plan){
           networkMargin += leg.margin;
-          // capacity per cycle = paxPerTrip; we don't have per-line here, estimate by duration mapping back
           const line = lineResults.find(l => l.name === leg.lineName);
           networkPax += line ? line.paxPerTrip : 0;
         }
@@ -188,12 +189,12 @@ export default function Home(){
       <Head><title>Pacific Seaflight Quick Check — Interlined Scheduler</title></Head>
       <div className="card">
         <h1 className="h1">Quick Check — Interlined (multi-line) day plan</h1>
-        <p className="subtitle">We evaluate **lines** (e.g., Juneau—Haines—Skagway) and size fleet by peak segment load. If you enter a budgeted fleet, we interline cycles across lines to build a single-day plan per vessel (no “one vessel per pair”).</p>
+        <p className="subtitle">We evaluate <b>lines</b> (e.g., Juneau—Haines—Skagway) and size fleet by peak segment load. If you enter a budgeted fleet, we interline cycles across multiple lines to build a single-day plan per vessel.</p>
 
         <div className="row">
           <div>
-            <label className="label">Cruise speed (knots)</label>
-            <input className="input" type="number" min="20" max="90" value={speed} onChange={e=>setSpeed(Number(e.target.value))} />
+            <label className="label">Cruise speed</label>
+            <div className="fixedBox">75 knots (fixed for demo)</div>
           </div>
           <div>
             <label className="label">Ops hours per day</label>
