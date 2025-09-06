@@ -2,8 +2,6 @@
 import { useMemo, useState } from 'react';
 import Head from 'next/head';
 import { motion } from 'framer-motion';
-import '../styles/globals.css';
-
 /** DEMO distances (nm) and demand — replace with NOAA + TranStats in production */
 const DISTANCES = {
   'San Francisco Bay': {
