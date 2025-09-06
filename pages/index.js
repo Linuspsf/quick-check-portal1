@@ -11,7 +11,9 @@ const DEFAULT_DWELL_MIN = 12;
 const DEFAULT_OPS_H = 12;
 const RESERVE = 0.15;
 
-// distance matrix (nm) — replace with NOAA tables for production
+const AREAS = ['Inside Passage (SE Alaska)','Puget Sound / Salish Sea'];
+
+// distance matrices (nm) — demo
 const DIST = {
   'Inside Passage (SE Alaska)': {
     ports: ['Juneau, AK','Haines, AK','Skagway, AK','Sitka, AK','Petersburg, AK','Wrangell, AK','Ketchikan, AK','Hoonah, AK'],
@@ -23,20 +25,36 @@ const DIST = {
       'Wrangell, AK': {'Ketchikan, AK': 82},
     }
   },
+  'Puget Sound / Salish Sea': {
+    ports: ['Seattle, WA','Bremerton, WA','Tacoma, WA','Everett, WA','Port Townsend, WA','Bellingham, WA'],
+    nm: {
+      'Seattle, WA': {'Bremerton, WA': 14, 'Tacoma, WA': 25, 'Everett, WA': 28, 'Port Townsend, WA': 35, 'Bellingham, WA': 70},
+      'Bremerton, WA': {'Tacoma, WA': 29, 'Everett, WA': 34, 'Port Townsend, WA': 24, 'Bellingham, WA': 77},
+      'Tacoma, WA': {'Everett, WA': 43, 'Port Townsend, WA': 49, 'Bellingham, WA': 89},
+      'Everett, WA': {'Port Townsend, WA': 28, 'Bellingham, WA': 46},
+      'Port Townsend, WA': {'Bellingham, WA': 40},
+    }
+  }
 };
 
-// lines (multi-stop corridors)
+// curated lines per area (multi-stop)
 const LINES = {
   'Inside Passage (SE Alaska)': [
     { id: 'JNU-HNS-SGY', name: 'Juneau—Haines—Skagway', stops: ['Juneau, AK','Haines, AK','Skagway, AK'], color:'#ef4444' },
     { id: 'JNU-SIT', name: 'Juneau—Sitka', stops: ['Juneau, AK','Sitka, AK'], color:'#7c3aed' },
     { id: 'JNU-PSG-WRG-KTN', name: 'Juneau—Petersburg—Wrangell—Ketchikan', stops: ['Juneau, AK','Petersburg, AK','Wrangell, AK','Ketchikan, AK'], color:'#10b981' },
     { id: 'JNU-HNH', name: 'Juneau—Hoonah', stops: ['Juneau, AK','Hoonah, AK'], color:'#f59e0b' },
+  ],
+  'Puget Sound / Salish Sea': [
+    { id: 'SEA-BRE', name: 'Seattle—Bremerton', stops: ['Seattle, WA','Bremerton, WA'], color:'#ef4444' },
+    { id: 'SEA-EVE-PT', name: 'Seattle—Everett—Port Townsend', stops: ['Seattle, WA','Everett, WA','Port Townsend, WA'], color:'#7c3aed' },
+    { id: 'SEA-TAC', name: 'Seattle—Tacoma', stops: ['Seattle, WA','Tacoma, WA'], color:'#10b981' },
   ]
 };
 
-// demo OD demand (annual pax); replace with /public/data/demand.json if present
+// demo OD demand (annual pax) across both areas
 const DEMO_OD = {
+  // Inside Passage
   'Juneau, AK ⇄ Haines, AK': 82400,
   'Juneau, AK ⇄ Skagway, AK': 42000,
   'Haines, AK ⇄ Skagway, AK': 18000,
@@ -47,6 +65,13 @@ const DEMO_OD = {
   'Juneau, AK ⇄ Wrangell, AK': 41800,
   'Juneau, AK ⇄ Ketchikan, AK': 35000,
   'Juneau, AK ⇄ Hoonah, AK': 30000,
+  // Puget
+  'Seattle, WA ⇄ Bremerton, WA': 120000,
+  'Seattle, WA ⇄ Tacoma, WA': 95000,
+  'Seattle, WA ⇄ Everett, WA': 88000,
+  'Everett, WA ⇄ Port Townsend, WA': 50000,
+  'Seattle, WA ⇄ Port Townsend, WA': 70000,
+  'Bremerton, WA ⇄ Everett, WA': 48000
 };
 
 function key(a,b){ return a<b ? `${a} ⇄ ${b}` : `${b} ⇄ ${a}`; }
@@ -55,30 +80,36 @@ function segs(stops, nmM){ const s=[]; for(let i=0;i<stops.length-1;i++){ const 
 function path(stops, s, a,b){ const i=stops.indexOf(a), j=stops.indexOf(b); if(i<0||j<0) return null; const lo=Math.min(i,j), hi=Math.max(i,j); return s.slice(lo,hi); }
 
 export default function Lite(){
-  const [area] = useState('Inside Passage (SE Alaska)');
+  const [area, setArea] = useState('Inside Passage (SE Alaska)');
+  const [home, setHome] = useState('Juneau, AK');
   const [fare, setFare] = useState(120);
   const [preset, setPreset] = useState('M'); // S=10%, M=25%, L=40%
-  const [od, setOD] = useState(DEMO_OD); // will overlay with /public/data/demand.json if present
+  const [od, setOD] = useState(DEMO_OD); // overlay with /public/data/demand.json if present
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [costNm, setCostNm] = useState(DEFAULT_COST_PER_NM);
   const [opsH, setOpsH] = useState(DEFAULT_OPS_H);
   const [dwellMin, setDwellMin] = useState(DEFAULT_DWELL_MIN);
   const [load, setLoad] = useState(DEFAULT_LOAD);
 
-  // Load demand overlay if /public/data/demand.json exists
   useEffect(()=>{ fetch('/data/demand.json').then(r=>r.ok?r.json():null).then(j=>{ if(j) setOD(j); }).catch(()=>{}); },[]);
+  useEffect(()=>{
+    // when area changes, default home port to the first port in that area
+    const ports = DIST[area].ports;
+    if(!ports.includes(home)) setHome(ports[0]);
+  }, [area]);
 
   const capture = preset==='S'?0.10:preset==='L'?0.40:0.25;
   const nmM = DIST[area].nm;
-  const lines = LINES[area];
+  const ports = DIST[area].ports;
+  const allLines = LINES[area].filter(L => L.stops.includes(home)); // only lines that include home port
   const seats = Math.floor(SEATS*load);
 
   const summary = useMemo(()=>{
     let dailyPax = 0, dailyRev = 0, dailyCost = 0;
     let fleet = 0;
-    const lineContrib = []; // for chart
+    const lineContrib = [];
 
-    for(const line of lines){
+    for(const line of allLines){
       const s = segs(line.stops, nmM);
       if(!s) continue;
       const oneWay = s.reduce((t,sg)=>t+sg.nm/KTS,0);
@@ -86,13 +117,11 @@ export default function Lite(){
       const tripsPerVessel = Math.max(1, Math.floor(opsH / cycle));
       const paxTrip = seats;
 
-      // candidate OD pairs: adjacent pairs + hub-to-stops (if Juneau)
       const pairs=[];
       for(let i=0;i<line.stops.length-1;i++) pairs.push(key(line.stops[i], line.stops[i+1]));
-      const hub = line.stops.find(sx=>/Juneau|Seattle|San Francisco|Chicago/.test(sx));
-      if(hub){ for(const x of line.stops) if(x!==hub) pairs.push(key(hub,x)); }
+      const hub = home; // anchor flows to the chosen home port
+      for(const x of line.stops) if(x!==hub) pairs.push(key(hub,x));
 
-      // build segment loads and capture
       const segLoad = s.map(x=>({...x, pax:0}));
       let captured = 0;
       for(const p of pairs){
@@ -112,7 +141,6 @@ export default function Lite(){
       const vesselsNeeded = Math.ceil(tripsNeeded/Math.max(tripsPerVessel,1));
       if(isFinite(vesselsNeeded)) fleet += vesselsNeeded;
 
-      // economics per line at service level meeting captured demand
       const lineTrips = tripsNeeded;
       const lineRoundNm = 2*s.reduce((t,sg)=>t+sg.nm,0);
       const rev = lineTrips * paxTrip * fare;
@@ -127,12 +155,11 @@ export default function Lite(){
     const fleetWithReserve = Math.ceil(fleet*(1+RESERVE));
     const margin = Math.max(0, dailyRev - dailyCost);
     return { dailyPax, dailyRev, dailyCost, margin, fleetWithReserve, lineContrib };
-  }, [lines, nmM, fare, preset, od, opsH, dwellMin, load, costNm]);
+  }, [allLines, nmM, fare, preset, od, opsH, dwellMin, load, costNm, home]);
 
   const fmt = (n)=>'$'+Math.round(n).toLocaleString();
   const fmtK = (n)=>Math.round(n).toLocaleString();
 
-  // bar chart helpers
   function MoneyBars({rev, cost}){
     const max = Math.max(rev, cost, 1);
     const r = Math.max(4, Math.round(240*(rev/max)));
@@ -171,15 +198,29 @@ export default function Lite(){
 
       <div className="card">
         <h1 className="h1">Quick Check — Profit Snapshot</h1>
-        <p className="sub">One-minute feasibility readout. Choose the area and a market size. We’ll estimate daily profits and the fleet needed to capture it.</p>
+        <p className="sub">Pick your area and home port. Choose a market size. We’ll estimate daily profits and the fleet needed to capture it.</p>
 
         <div className="row">
           <div>
             <label className="label">Service area</label>
-            <select className="select" defaultValue="Inside Passage (SE Alaska)">
-              <option>Inside Passage (SE Alaska)</option>
+            <select className="select" value={area} onChange={e=>setArea(e.target.value)}>
+              {AREAS.map(a=>(<option key={a}>{a}</option>))}
             </select>
           </div>
+          <div>
+            <label className="label">Home port</label>
+            <select className="select" value={home} onChange={e=>setHome(e.target.value)}>
+              {DIST[area].ports.map(p=>(<option key={p}>{p}</option>))}
+            </select>
+            <div className="small" style={{marginTop:6}}>We consider only lines that include this port.</div>
+          </div>
+          <div>
+            <label className="label">Average fare (USD)</label>
+            <input className="input" type="number" value={fare} onChange={e=>setFare(Number(e.target.value))}/>
+          </div>
+        </div>
+
+        <div className="row">
           <div>
             <label className="label">Market size</label>
             <div style={{display:'flex',gap:8}}>
@@ -190,8 +231,12 @@ export default function Lite(){
             <div className="small" style={{marginTop:6}}>Small≈10% • Medium≈25% • Large≈40% capture</div>
           </div>
           <div>
-            <label className="label">Average fare (USD)</label>
-            <input className="input" type="number" value={fare} onChange={e=>setFare(Number(e.target.value))}/>
+            <label className="label">Ops hrs/day (advanced)</label>
+            <input className="input" type="number" value={opsH} onChange={e=>setOpsH(Number(e.target.value))}/>
+          </div>
+          <div>
+            <label className="label">Load factor (advanced)</label>
+            <input className="input" type="number" step="0.05" value={load} onChange={e=>setLoad(Number(e.target.value))}/>
           </div>
         </div>
 
@@ -212,7 +257,7 @@ export default function Lite(){
             <span className="badge"><span className="dot" style={{background:'#ef4444'}}/>Variable cost</span>
             <span className="badge"><span className="dot" style={{background:'#0ea5e9'}}/>Gross margin</span>
           </div>
-          <div className="small" style={{marginTop:8}}>Assumes 75 kn, {DEFAULT_OPS_H} ops hrs/day, {DEFAULT_DWELL_MIN} min dwell, {int(DEFAULT_LOAD*100)}% target load.</div>
+          <div className="small" style={{marginTop:8}}>Assumes 75 kn, {DEFAULT_OPS_H} ops hrs/day, {DEFAULT_DWELL_MIN} min dwell, {int(DEFAULT_LOAD*100)}% target load. Segments &gt; 500 nm excluded.</div>
         </div>
       </div>
 
@@ -223,22 +268,6 @@ export default function Lite(){
           <div className="legend" style={{marginTop:8}}>
             {summary.lineContrib.map(d=>(<span key={d.name} className="badge"><span className="dot" style={{background:d.color}}/>{d.name}</span>))}
           </div>
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="sectionTitle">Advanced (optional)</div>
-        <div className="advanced">
-          <span className="hiddenLink" onClick={()=>setShowAdvanced(x=>!x)}>{showAdvanced?'Hide':'Show'} advanced assumptions</span>
-          {showAdvanced && (
-            <div className="row" style={{marginTop:8}}>
-              <div><label className="label">Ops hours/day</label><input className="input" type="number" value={opsH} onChange={e=>setOpsH(Number(e.target.value))}/></div>
-              <div><label className="label">Port dwell per call (min)</label><input className="input" type="number" value={dwellMin} onChange={e=>setDwellMin(Number(e.target.value))}/></div>
-              <div><label className="label">Variable cost per nm</label><input className="input" type="number" value={costNm} onChange={e=>setCostNm(Number(e.target.value))}/></div>
-              <div><label className="label">Target load factor</label><input className="input" type="number" step="0.05" value={load} onChange={e=>setLoad(Number(e.target.value))}/></div>
-            </div>
-          )}
-          <div className="disclosure">First-contact estimate. Full pro forma refines fixed costs, capex/financing, staffing, and seasonality.</div>
         </div>
       </div>
 

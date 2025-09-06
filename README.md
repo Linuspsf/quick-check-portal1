@@ -1,1 +1,1 @@
-Quick Check — LITE: minimal UI, 75 kn fixed, money-first charts. Replace demand via /public/data/demand.json.
+Quick Check — LITE v2: adds service area + home port picker; still money-first charts.
